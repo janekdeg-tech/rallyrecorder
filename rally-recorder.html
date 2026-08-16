@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Table Tennis Rally Recorder</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #1e1e1e;
+    color: #e8e8e8;
+    min-height: 100vh;
+  }
+  .app { display: flex; height: 100vh; }
+
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+    min-width: 0;
+    gap: 12px;
+  }
+  .video-wrap {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #333;
+  }
+  video { width: 100%; height: 100%; object-fit: contain; }
+  .empty-hint { color: #888; font-size: 18px; text-align: center; }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    background: #252526;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 10px 14px;
+  }
+  .controls button, .sidebar button {
+    background: #3a3a3a;
+    color: #e8e8e8;
+    border: 1px solid #555;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .controls button:hover, .sidebar button:hover { background: #4a4a4a; }
+  .controls button:disabled, .sidebar button:disabled { opacity: .4; cursor: not-allowed; }
+
+  .speed-box { display: flex; align-items: center; gap: 8px; margin-left: auto; font-size: 13px; }
+  .speed-box input[type=range] { width: 120px; }
+
+  .time-display {
+    font-family: Consolas, monospace;
+    font-size: 16px;
+    min-width: 70px;
+    text-align: center;
+  }
+
+  .rally-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  #rallyBtn {
+    font-size: 16px;
+    font-weight: 600;
+    padding: 12px 22px;
+    background: #2d5a27;
+    border-color: #4caf50;
+  }
+  #rallyBtn.recording {
+    background: #6a1f1f;
+    border-color: #ef5350;
+    animation: pulse 1.2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239, 83, 80, .5); }
+    50% { box-shadow: 0 0 0 8px rgba(239, 83, 80, 0); }
+  }
+  .current-label { color: #999; font-size: 13px; }
+  #currentTime {
+    font-family: Consolas, monospace;
+    font-size: 20px;
+    font-weight: 600;
+  }
+  .rec-indicator { display: none; color: #ef5350; font-weight: 700; }
+  .rec-indicator.on { display: inline; }
+
+  .sidebar {
+    width: 360px;
+    min-width: 360px;
+    border-left: 1px solid #333;
+    background: #252526;
+    padding: 16px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .sidebar h2 { font-size: 15px; color: #bbb; text-transform: uppercase; letter-spacing: 1px; }
+  .sidebar-header { display: flex; justify-content: space-between; align-items: center; }
+  #copyBtn { padding: 6px 12px; font-size: 13px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  thead th {
+    text-align: left;
+    color: #999;
+    font-weight: 600;
+    padding: 6px 8px;
+    border-bottom: 1px solid #444;
+  }
+  tbody td { padding: 6px 8px; border-bottom: 1px solid #333; }
+  tbody tr.active-rally { background: rgba(239, 83, 80, .12); }
+  .time-cell { font-family: Consolas, monospace; cursor: text; }
+  .time-cell:hover { background: #3a3a3a; }
+  .time-input {
+    width: 100%;
+    font-family: Consolas, monospace;
+    font-size: 14px;
+    background: #3a3a3a;
+    color: #e8e8e8;
+    border: 1px solid #4caf50;
+    border-radius: 4px;
+    padding: 2px 4px;
+    outline: none;
+  }
+  .delete-btn {
+    background: transparent !important;
+    border: none !important;
+    color: #e05c5c;
+    font-weight: 700;
+    padding: 2px 8px !important;
+    font-size: 13px !important;
+  }
+  .delete-btn:hover { color: #fff; background: #7a2323 !important; }
+  .no-rallies { color: #777; font-size: 13px; font-style: italic; }
+  .footer-note { color: #666; font-size: 12px; margin-top: auto; }
+
+  /* --- Mobile / small screens --- */
+  @media (max-width: 820px) {
+    .app { flex-direction: column; height: auto; min-height: 100vh; }
+    .main { padding: 10px; }
+    .video-wrap { height: 42vh; flex: none; }
+    .controls { justify-content: center; padding: 10px; }
+    .controls button, .sidebar button { min-height: 44px; min-width: 44px; font-size: 15px; }
+    .speed-box { margin-left: 0; width: 100%; justify-content: center; }
+    .speed-box input[type=range] { width: 55%; }
+    .rally-bar { justify-content: center; }
+    #rallyBtn { flex: 1; max-width: 320px; min-height: 50px; }
+    .sidebar { width: 100%; min-width: 0; border-left: none; border-top: 1px solid #333; }
+    .time-cell { padding: 10px 8px; }
+    .delete-btn { min-width: 44px !important; }
+  }
+</style>
+</head>
+<body>
+  <div class="app">
+    <div class="main">
+      <div class="video-wrap">
+        <video id="video" preload="metadata"></video>
+        <div id="emptyHint" class="empty-hint">No video loaded — click "Open Video"</div>
+      </div>
+
+      <div class="controls">
+        <button id="openBtn">Open Video…</button>
+        <input type="file" id="fileInput" accept="video/*" hidden>
+        <button id="backBtn" disabled>&#9198; 10s</button>
+        <button id="playBtn" disabled>&#9654; Pause</button>
+        <button id="fwdBtn" disabled>10s &#9197;</button>
+        <div class="speed-box">
+          <label for="speedSlider">Speed</label>
+          <input type="range" id="speedSlider" min="0.25" max="3" step="0.25" value="1" disabled>
+          <span id="speedLabel">1.0x</span>
+        </div>
+        <span class="time-display" id="timeDisplay">0:00 / 0:00</span>
+      </div>
+
+      <div class="rally-bar">
+        <button id="rallyBtn" disabled>START RALLY</button>
+        <span class="rec-indicator" id="recIndicator">● RECORDING</span>
+        <span class="current-label">Current time:</span>
+        <span id="currentTime">0:00</span>
+      </div>
+    </div>
+
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <h2>Rallies</h2>
+        <button id="copyBtn">Copy List</button>
+      </div>
+      <div id="ralliesContainer"></div>
+      <div class="footer-note">Click a start/end time to edit it. Click X to delete a rally.</div>
+    </div>
+  </div>
+
+  <script>
+    const video = document.getElementById('video');
+    const emptyHint = document.getElementById('emptyHint');
+    const openBtn = document.getElementById('openBtn');
+    const fileInput = document.getElementById('fileInput');
+    const backBtn = document.getElementById('backBtn');
+    const playBtn = document.getElementById('playBtn');
+    const fwdBtn = document.getElementById('fwdBtn');
+    const speedSlider = document.getElementById('speedSlider');
+    const speedLabel = document.getElementById('speedLabel');
+    const timeDisplay = document.getElementById('timeDisplay');
+    const rallyBtn = document.getElementById('rallyBtn');
+    const recIndicator = document.getElementById('recIndicator');
+    const currentTimeEl = document.getElementById('currentTime');
+    const ralliesContainer = document.getElementById('ralliesContainer');
+
+    let rallies = [];
+    let activeRally = null;
+
+    function formatTime(sec) {
+      if (!isFinite(sec) || sec < 0) sec = 0;
+      sec = Math.floor(sec);
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      const s = sec % 60;
+      const pad = (n) => String(n).padStart(2, '0');
+      return h > 0 ? h + ':' + pad(m) + ':' + pad(s) : m + ':' + pad(s);
+    }
+
+    function parseTime(str) {
+      const t = str.trim();
+      if (t === '') return null;
+      const parts = t.split(':').map(function (p) { return parseInt(p, 10); });
+      if (parts.some(isNaN) || parts.length < 1 || parts.length > 3) return null;
+      let total = 0;
+      for (let i = 0; i < parts.length; i++) {
+        total = total * 60 + parts[i];
+      }
+      if (total < 0) return null;
+      return total;
+    }
+
+    // ---- Video loading ----
+    openBtn.addEventListener('click', function () { fileInput.click(); });
+    fileInput.addEventListener('change', function () {
+      const file = fileInput.files[0];
+      if (!file) return;
+      video.src = URL.createObjectURL(file);
+      video.load();
+      emptyHint.style.display = 'none';
+      video.style.display = 'block';
+    });
+
+    // ---- Enable controls once video is ready ----
+    function enableControls() {
+      backBtn.disabled = false;
+      playBtn.disabled = false;
+      fwdBtn.disabled = false;
+      speedSlider.disabled = false;
+      rallyBtn.disabled = false;
+      playBtn.textContent = '\u25B6 Pause';
+    }
+    video.addEventListener('loadedmetadata', enableControls);
+
+    // ---- Time updates ----
+    function updateTimes() {
+      const dur = isFinite(video.duration) ? video.duration : 0;
+      timeDisplay.textContent = formatTime(video.currentTime) + ' / ' + formatTime(dur);
+      currentTimeEl.textContent = formatTime(video.currentTime);
+    }
+    video.addEventListener('timeupdate', updateTimes);
+    video.addEventListener('loadedmetadata', updateTimes);
+
+    // ---- Transport controls ----
+    backBtn.addEventListener('click', function () {
+      video.currentTime = Math.max(0, video.currentTime - 10);
+    });
+    fwdBtn.addEventListener('click', function () {
+      video.currentTime = Math.min(video.duration || 0, video.currentTime + 10);
+    });
+    playBtn.addEventListener('click', function () {
+      if (video.paused) {
+        video.play();
+        playBtn.textContent = '\u23F8 Pause';
+      } else {
+        video.pause();
+        playBtn.textContent = '\u25B6 Play';
+      }
+    });
+    video.addEventListener('play', function () { playBtn.textContent = '\u23F8 Pause'; });
+    video.addEventListener('pause', function () { playBtn.textContent = '\u25B6 Play'; });
+
+    speedSlider.addEventListener('input', function () {
+      video.playbackRate = parseFloat(speedSlider.value);
+      speedLabel.textContent = speedSlider.value + 'x';
+    });
+
+    // ---- Rally recording ----
+    rallyBtn.addEventListener('click', function () {
+      if (!activeRally) {
+        activeRally = { start: video.currentTime, end: null };
+        rallies.push(activeRally);
+        rallyBtn.textContent = 'END RALLY';
+        rallyBtn.classList.add('recording');
+        recIndicator.classList.add('on');
+      } else {
+        activeRally.end = video.currentTime;
+        activeRally = null;
+        rallyBtn.textContent = 'START RALLY';
+        rallyBtn.classList.remove('recording');
+        recIndicator.classList.remove('on');
+      }
+      renderTable();
+    });
+
+    // ---- Rally table ----
+    function renderTable() {
+      if (rallies.length === 0) {
+        ralliesContainer.innerHTML = '<div class="no-rallies">No rallies recorded yet.</div>';
+        return;
+      }
+      let html = '<table><thead><tr><th>Rally</th><th>Start</th><th>End</th><th></th></tr></thead><tbody>';
+      rallies.forEach(function (r, i) {
+        const isActive = r === activeRally;
+        html += '<tr data-index="' + i + '"' + (isActive ? ' class="active-rally"' : '') + '>' +
+          '<td>' + (i + 1) + '</td>' +
+          '<td class="time-cell" data-field="start">' + formatTime(r.start) + '</td>' +
+          '<td class="time-cell" data-field="end">' + (r.end !== null ? formatTime(r.end) : '\u2014') + '</td>' +
+          '<td><button class="delete-btn" title="Delete rally">X</button></td>' +
+          '</tr>';
+      });
+      html += '</tbody></table>';
+      ralliesContainer.innerHTML = html;
+    }
+
+    // ---- Edit time cells (event delegation) ----
+    ralliesContainer.addEventListener('click', function (e) {
+      const cell = e.target.closest('.time-cell');
+      if (!cell) return;
+      startEdit(cell);
+    });
+
+    function startEdit(cell) {
+      if (cell.querySelector('input')) return;
+      const index = parseInt(cell.parentElement.dataset.index, 10);
+      const field = cell.dataset.field;
+      const rally = rallies[index];
+      if (!rally) return;
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'time-input';
+      input.value = field === 'start' ? formatTime(rally.start) : (rally.end !== null ? formatTime(rally.end) : '');
+      cell.textContent = '';
+      cell.appendChild(input);
+      input.focus();
+      input.select();
+
+      let done = false;
+      function commit() {
+        if (done) return;
+        done = true;
+        const val = parseTime(input.value);
+        if (val !== null) {
+          rally[field] = val;
+        }
+        renderTable();
+      }
+      function cancel() {
+        if (done) return;
+        done = true;
+        renderTable();
+      }
+      input.addEventListener('blur', commit);
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') commit();
+        else if (e.key === 'Escape') cancel();
+      });
+    }
+
+    // ---- Delete rallies (event delegation) ----
+    ralliesContainer.addEventListener('click', function (e) {
+      const btn = e.target.closest('.delete-btn');
+      if (!btn) return;
+      const index = parseInt(btn.closest('tr').dataset.index, 10);
+      const rally = rallies[index];
+      if (rally === activeRally) {
+        activeRally = null;
+        rallyBtn.textContent = 'START RALLY';
+        rallyBtn.classList.remove('recording');
+        recIndicator.classList.remove('on');
+      }
+      rallies.splice(index, 1);
+      renderTable();
+    });
+
+    // ---- Copy list ----
+    const copyBtn = document.getElementById('copyBtn');
+
+    copyBtn.addEventListener('click', function () {
+      const lines = [];
+      rallies.forEach(function (r, i) {
+        if (r.end === null) return;
+        lines.push((i + 1) + ' | ' + formatTime(r.start) + '-' + formatTime(r.end));
+      });
+
+      if (lines.length === 0) {
+        flashCopyBtn('Nothing to copy');
+        return;
+      }
+      copyText(lines.join('\n')).then(function (ok) {
+        flashCopyBtn(ok ? 'Copied!' : 'Copy failed');
+      });
+    });
+
+    function flashCopyBtn(msg) {
+      copyBtn.textContent = msg;
+      setTimeout(function () { copyBtn.textContent = 'Copy List'; }, 1500);
+    }
+
+    function copyText(text) {
+      if (navigator.clipboard && window.isSecureContext) {
+        return navigator.clipboard.writeText(text).then(function () { return true; }, function () { return false; });
+      }
+      return new Promise(function (resolve) {
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.focus();
+          ta.select();
+          const ok = document.execCommand('copy');
+          document.body.removeChild(ta);
+          resolve(ok);
+        } catch (e) {
+          resolve(false);
+        }
+      });
+    }
+
+    renderTable();
+  </script>
+</body>
+</html>

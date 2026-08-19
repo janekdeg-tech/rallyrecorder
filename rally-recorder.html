@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Table Tennis Rally Recorder</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -32,15 +32,63 @@
     border-radius: 8px;
     overflow: hidden;
     border: 1px solid #333;
+    position: relative;
   }
   video { width: 100%; height: 100%; object-fit: contain; }
   .empty-hint { color: #888; font-size: 18px; text-align: center; }
   .load-error { color: #ef5350; font-size: 13px; text-align: center; padding: 8px; }
 
+  /* --- Overlay controls on the video --- */
+  .video-overlay {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 12px 14px;
+    background: linear-gradient(transparent, rgba(0, 0, 0, .78));
+    z-index: 5;
+  }
+  .ov-group { display: flex; align-items: center; gap: 8px; }
+  .video-overlay button {
+    background: rgba(0, 0, 0, .6);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, .35);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 14px;
+    cursor: pointer;
+    min-height: 40px;
+    white-space: nowrap;
+  }
+  .video-overlay button:hover { background: rgba(255, 255, 255, .22); }
+  .video-overlay button:disabled { opacity: .4; cursor: not-allowed; }
+  #rallyBtn { font-weight: 700; background: #2d5a27; border-color: #4caf50; }
+  #rallyBtn.recording {
+    background: #6a1f1f;
+    border-color: #ef5350;
+    animation: pulse 1.2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239, 83, 80, .5); }
+    50% { box-shadow: 0 0 0 8px rgba(239, 83, 80, 0); }
+  }
+  #letBtn { background: #5a5427; border-color: #d4b106; }
+  #letBtn:hover { background: #6a6227; }
+  #letBtn.marking {
+    background: #7a6a1f;
+    border-color: #ffeb3b;
+    box-shadow: 0 0 0 3px rgba(255, 235, 59, .3);
+  }
+
+  /* --- Bottom controls bar --- */
   .controls {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
     flex-wrap: wrap;
     background: #252526;
     border: 1px solid #333;
@@ -58,57 +106,18 @@
   }
   .controls button:hover, .sidebar button:hover { background: #4a4a4a; }
   .controls button:disabled, .sidebar button:disabled { opacity: .4; cursor: not-allowed; }
-
   .speed-box { display: flex; align-items: center; gap: 8px; margin-left: auto; font-size: 13px; }
   .speed-box input[type=range] { width: 120px; }
-
   .time-display {
     font-family: Consolas, monospace;
-    font-size: 16px;
-    min-width: 70px;
+    font-size: 15px;
+    min-width: 90px;
     text-align: center;
   }
-
-  .rally-bar {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  #rallyBtn {
-    font-size: 16px;
-    font-weight: 600;
-    padding: 12px 22px;
-    background: #2d5a27;
-    border-color: #4caf50;
-  }
-  #rallyBtn.recording {
-    background: #6a1f1f;
-    border-color: #ef5350;
-    animation: pulse 1.2s infinite;
-  }
-  @keyframes pulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(239, 83, 80, .5); }
-    50% { box-shadow: 0 0 0 8px rgba(239, 83, 80, 0); }
-  }
-  .current-label { color: #999; font-size: 13px; }
-  #currentTime {
-    font-family: Consolas, monospace;
-    font-size: 20px;
-    font-weight: 600;
-  }
-  .rec-indicator { display: none; color: #ef5350; font-weight: 700; }
+  .rec-indicator { display: none; color: #ef5350; font-weight: 700; font-size: 13px; }
   .rec-indicator.on { display: inline; }
-
-  #letBtn { background: #5a5427; border-color: #d4b106; }
-  #letBtn:hover { background: #6a6227; }
-  #letBtn.marking {
-    background: #7a6a1f;
-    border-color: #ffeb3b;
-    box-shadow: 0 0 0 3px rgba(255, 235, 59, .3);
-  }
   .let-hint { display: none; color: #ffeb3b; font-size: 13px; }
   .let-hint.on { display: inline; }
-  .current-box { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 
   .sidebar {
     width: 360px;
@@ -174,7 +183,7 @@
   .no-rallies { color: #777; font-size: 13px; font-style: italic; }
   .footer-note { color: #666; font-size: 12px; margin-top: auto; }
 
-  /* --- Mobile / small screens --- */
+  /* --- Mobile portrait / small screens --- */
   @media (max-width: 820px) {
     .app { flex-direction: column; height: auto; min-height: 100vh; }
     .main { padding: 10px; }
@@ -183,13 +192,25 @@
     .controls button, .sidebar button { min-height: 44px; min-width: 44px; font-size: 15px; }
     .speed-box { margin-left: 0; width: 100%; justify-content: center; }
     .speed-box input[type=range] { width: 55%; }
-    .rally-bar { justify-content: center; flex-wrap: wrap; }
-    #rallyBtn { flex: 1; max-width: 320px; min-height: 50px; }
-    #letBtn { min-width: 44px; min-height: 44px; }
-    .current-box { margin-left: 0; }
+    .video-overlay { flex-wrap: wrap; justify-content: center; padding: 8px 10px; }
     .sidebar { width: 100%; min-width: 0; border-left: none; border-top: 1px solid #333; }
     .time-cell { padding: 10px 8px; }
     .delete-btn { min-width: 44px !important; }
+  }
+
+  /* --- Landscape phones (short + wide) --- */
+  @media (orientation: landscape) and (max-height: 700px) {
+    .app { flex-direction: row; height: 100vh; }
+    .main { padding: 8px; gap: 8px; }
+    .video-wrap { flex: 1; height: auto; }
+    .controls { justify-content: flex-start; gap: 10px; padding: 8px 10px; }
+    .controls button { min-height: 40px; min-width: 40px; }
+    .speed-box { margin-left: auto; width: auto; }
+    .speed-box input[type=range] { width: 90px; }
+    .video-overlay { padding: 6px 10px; }
+    .video-overlay button { min-height: 36px; padding: 6px 10px; font-size: 13px; }
+    .sidebar { width: 300px; min-width: 300px; border-left: 1px solid #333; border-top: none; }
+    .time-display { font-size: 13px; min-width: 78px; }
   }
 </style>
 </head>
@@ -200,31 +221,30 @@
         <video id="video" preload="metadata" playsinline webkit-playsinline></video>
         <div id="emptyHint" class="empty-hint">No video loaded — click "Open Video"</div>
         <div id="loadError" class="load-error" hidden></div>
+        <div class="video-overlay">
+          <div class="ov-group">
+            <button id="backBtn" disabled title="Back 10 seconds">&#9198; 10s</button>
+            <button id="playBtn" disabled title="Play / Pause">&#9654;</button>
+            <button id="fwdBtn" disabled title="Forward 10 seconds">10s &#9197;</button>
+          </div>
+          <div class="ov-group">
+            <button id="rallyBtn" disabled>START RALLY</button>
+            <button id="letBtn" disabled title="Mark rally as a let">LET</button>
+          </div>
+        </div>
       </div>
 
       <div class="controls">
-        <button id="openBtn">Open Video…</button>
+        <button id="openBtn">Open Video&#8230;</button>
         <input type="file" id="fileInput" accept="video/*" hidden>
-        <button id="backBtn" disabled>&#9198; 10s</button>
-        <button id="playBtn" disabled>&#9654; Pause</button>
-        <button id="fwdBtn" disabled>10s &#9197;</button>
         <div class="speed-box">
           <label for="speedSlider">Speed</label>
           <input type="range" id="speedSlider" min="0.25" max="3" step="0.25" value="1" disabled>
           <span id="speedLabel">1.0x</span>
         </div>
         <span class="time-display" id="timeDisplay">0:00 / 0:00</span>
-      </div>
-
-      <div class="rally-bar">
-        <button id="rallyBtn" disabled>START RALLY</button>
-        <button id="letBtn" disabled title="Mark rally as a let">LET</button>
-        <span class="rec-indicator" id="recIndicator">● RECORDING</span>
+        <span class="rec-indicator" id="recIndicator">&#9679; RECORDING</span>
         <span class="let-hint" id="letHint">Click a rally number to mark it as LET</span>
-        <span class="current-box">
-          <span class="current-label">Current time:</span>
-          <span id="currentTime">0:00</span>
-        </span>
       </div>
     </div>
 
@@ -252,9 +272,8 @@
     const timeDisplay = document.getElementById('timeDisplay');
     const rallyBtn = document.getElementById('rallyBtn');
     const letBtn = document.getElementById('letBtn');
-    const letHint = document.getElementById('letHint');
     const recIndicator = document.getElementById('recIndicator');
-    const currentTimeEl = document.getElementById('currentTime');
+    const letHint = document.getElementById('letHint');
     const ralliesContainer = document.getElementById('ralliesContainer');
 
     let rallies = [];
@@ -351,7 +370,7 @@
       speedSlider.disabled = false;
       rallyBtn.disabled = false;
       letBtn.disabled = false;
-      playBtn.textContent = '\u25B6 Pause';
+      playBtn.textContent = '\u25B6';
     }
     video.addEventListener('loadedmetadata', enableControls);
 
@@ -359,7 +378,6 @@
     function updateTimes() {
       const dur = isFinite(video.duration) ? video.duration : 0;
       timeDisplay.textContent = formatTime(video.currentTime) + ' / ' + formatTime(dur);
-      currentTimeEl.textContent = formatTime(video.currentTime);
     }
     video.addEventListener('timeupdate', updateTimes);
     video.addEventListener('loadedmetadata', updateTimes);
@@ -374,14 +392,14 @@
     playBtn.addEventListener('click', function () {
       if (video.paused) {
         video.play();
-        playBtn.textContent = '\u23F8 Pause';
+        playBtn.textContent = '\u23F8';
       } else {
         video.pause();
-        playBtn.textContent = '\u25B6 Play';
+        playBtn.textContent = '\u25B6';
       }
     });
-    video.addEventListener('play', function () { playBtn.textContent = '\u23F8 Pause'; });
-    video.addEventListener('pause', function () { playBtn.textContent = '\u25B6 Play'; });
+    video.addEventListener('play', function () { playBtn.textContent = '\u23F8'; });
+    video.addEventListener('pause', function () { playBtn.textContent = '\u25B6'; });
 
     speedSlider.addEventListener('input', function () {
       video.playbackRate = parseFloat(speedSlider.value);

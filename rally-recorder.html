@@ -66,16 +66,6 @@
   }
   .video-overlay button:hover { background: rgba(255, 255, 255, .22); }
   .video-overlay button:disabled { opacity: .4; cursor: not-allowed; }
-  #rallyBtn { font-weight: 700; background: #2d5a27; border-color: #4caf50; }
-  #rallyBtn.recording {
-    background: #6a1f1f;
-    border-color: #ef5350;
-    animation: pulse 1.2s infinite;
-  }
-  @keyframes pulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(239, 83, 80, .5); }
-    50% { box-shadow: 0 0 0 8px rgba(239, 83, 80, 0); }
-  }
   #letBtn { background: #5a5427; border-color: #d4b106; }
   #letBtn:hover { background: #6a6227; }
   #letBtn.marking {
@@ -133,6 +123,30 @@
   .sidebar h2 { font-size: 15px; color: #bbb; text-transform: uppercase; letter-spacing: 1px; }
   .sidebar-header { display: flex; justify-content: space-between; align-items: center; }
   #copyBtn { padding: 6px 12px; font-size: 13px; }
+  #ralliesContainer { flex: 1; overflow-y: auto; min-height: 0; }
+  .sidebar-actions {
+    flex: none;
+    padding-top: 12px;
+    border-top: 1px solid #333;
+    display: flex;
+  }
+  #rallyBtn {
+    flex: 1;
+    font-size: 16px;
+    font-weight: 700;
+    padding: 14px;
+    background: #2d5a27;
+    border-color: #4caf50;
+  }
+  #rallyBtn.recording {
+    background: #6a1f1f;
+    border-color: #ef5350;
+    animation: pulse 1.2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239, 83, 80, .5); }
+    50% { box-shadow: 0 0 0 8px rgba(239, 83, 80, 0); }
+  }
 
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
   thead th {
@@ -181,7 +195,7 @@
   }
   .delete-btn:hover { color: #fff; background: #7a2323 !important; }
   .no-rallies { color: #777; font-size: 13px; font-style: italic; }
-  .footer-note { color: #666; font-size: 12px; margin-top: auto; }
+  .footer-note { color: #666; font-size: 12px; flex: none; padding-top: 8px; }
 
   /* --- Mobile portrait / small screens --- */
   @media (max-width: 820px) {
@@ -194,6 +208,8 @@
     .speed-box input[type=range] { width: 55%; }
     .video-overlay { flex-wrap: wrap; justify-content: center; padding: 8px 10px; }
     .sidebar { width: 100%; min-width: 0; border-left: none; border-top: 1px solid #333; }
+    .sidebar-actions { padding: 10px 0 0; }
+    #rallyBtn { min-height: 52px; font-size: 16px; }
     .time-cell { padding: 10px 8px; }
     .delete-btn { min-width: 44px !important; }
   }
@@ -228,7 +244,6 @@
             <button id="fwdBtn" disabled title="Forward 10 seconds">10s &#9197;</button>
           </div>
           <div class="ov-group">
-            <button id="rallyBtn" disabled>START RALLY</button>
             <button id="letBtn" disabled title="Mark rally as a let">LET</button>
           </div>
         </div>
@@ -254,6 +269,9 @@
         <button id="copyBtn">Copy List</button>
       </div>
       <div id="ralliesContainer"></div>
+      <div class="sidebar-actions">
+        <button id="rallyBtn" disabled>START RALLY</button>
+      </div>
       <div class="footer-note">Click a start/end time to edit it. Click let to remove it. Click X to delete a rally.</div>
     </div>
   </div>
@@ -415,14 +433,17 @@
         rallyBtn.textContent = 'END RALLY';
         rallyBtn.classList.add('recording');
         recIndicator.classList.add('on');
+        renderTable();
+        scrollListToBottom();
       } else {
         activeRally.end = video.currentTime;
         activeRally = null;
         rallyBtn.textContent = 'START RALLY';
         rallyBtn.classList.remove('recording');
         recIndicator.classList.remove('on');
+        renderTable();
+        scrollListToBottom();
       }
-      renderTable();
     });
 
     // ---- LET button ----
@@ -436,6 +457,7 @@
         recIndicator.classList.remove('on');
         setLetMode(false);
         renderTable();
+        scrollListToBottom();
       } else if (letMode) {
         setLetMode(false);
       } else {
@@ -464,6 +486,10 @@
       });
       html += '</tbody></table>';
       ralliesContainer.innerHTML = html;
+    }
+
+    function scrollListToBottom() {
+      ralliesContainer.scrollTop = ralliesContainer.scrollHeight;
     }
 
     // ---- Edit time cells (event delegation) ----

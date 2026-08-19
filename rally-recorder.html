@@ -35,6 +35,7 @@
   }
   video { width: 100%; height: 100%; object-fit: contain; }
   .empty-hint { color: #888; font-size: 18px; text-align: center; }
+  .load-error { color: #ef5350; font-size: 13px; text-align: center; padding: 8px; }
 
   .controls {
     display: flex;
@@ -98,6 +99,17 @@
   .rec-indicator { display: none; color: #ef5350; font-weight: 700; }
   .rec-indicator.on { display: inline; }
 
+  #letBtn { background: #5a5427; border-color: #d4b106; }
+  #letBtn:hover { background: #6a6227; }
+  #letBtn.marking {
+    background: #7a6a1f;
+    border-color: #ffeb3b;
+    box-shadow: 0 0 0 3px rgba(255, 235, 59, .3);
+  }
+  .let-hint { display: none; color: #ffeb3b; font-size: 13px; }
+  .let-hint.on { display: inline; }
+  .current-box { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
   .sidebar {
     width: 360px;
     min-width: 360px;
@@ -123,6 +135,20 @@
   }
   tbody td { padding: 6px 8px; border-bottom: 1px solid #333; }
   tbody tr.active-rally { background: rgba(239, 83, 80, .12); }
+  .num-cell { font-weight: 600; }
+  tbody.let-mode .num-cell { cursor: pointer; color: #ffeb3b; text-decoration: underline; }
+  .let-cell { text-align: center; }
+  .let-tag {
+    display: inline-block;
+    background: #7a6a1f;
+    color: #ffeb3b;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 2px 10px;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+  .let-tag:hover { background: #8a7a2a; }
   .time-cell { font-family: Consolas, monospace; cursor: text; }
   .time-cell:hover { background: #3a3a3a; }
   .time-input {
@@ -157,8 +183,10 @@
     .controls button, .sidebar button { min-height: 44px; min-width: 44px; font-size: 15px; }
     .speed-box { margin-left: 0; width: 100%; justify-content: center; }
     .speed-box input[type=range] { width: 55%; }
-    .rally-bar { justify-content: center; }
+    .rally-bar { justify-content: center; flex-wrap: wrap; }
     #rallyBtn { flex: 1; max-width: 320px; min-height: 50px; }
+    #letBtn { min-width: 44px; min-height: 44px; }
+    .current-box { margin-left: 0; }
     .sidebar { width: 100%; min-width: 0; border-left: none; border-top: 1px solid #333; }
     .time-cell { padding: 10px 8px; }
     .delete-btn { min-width: 44px !important; }
@@ -169,8 +197,9 @@
   <div class="app">
     <div class="main">
       <div class="video-wrap">
-        <video id="video" preload="metadata"></video>
+        <video id="video" preload="metadata" playsinline webkit-playsinline></video>
         <div id="emptyHint" class="empty-hint">No video loaded — click "Open Video"</div>
+        <div id="loadError" class="load-error" hidden></div>
       </div>
 
       <div class="controls">
@@ -189,9 +218,13 @@
 
       <div class="rally-bar">
         <button id="rallyBtn" disabled>START RALLY</button>
+        <button id="letBtn" disabled title="Mark rally as a let">LET</button>
         <span class="rec-indicator" id="recIndicator">● RECORDING</span>
-        <span class="current-label">Current time:</span>
-        <span id="currentTime">0:00</span>
+        <span class="let-hint" id="letHint">Click a rally number to mark it as LET</span>
+        <span class="current-box">
+          <span class="current-label">Current time:</span>
+          <span id="currentTime">0:00</span>
+        </span>
       </div>
     </div>
 
@@ -201,13 +234,14 @@
         <button id="copyBtn">Copy List</button>
       </div>
       <div id="ralliesContainer"></div>
-      <div class="footer-note">Click a start/end time to edit it. Click X to delete a rally.</div>
+      <div class="footer-note">Click a start/end time to edit it. Click let to remove it. Click X to delete a rally.</div>
     </div>
   </div>
 
   <script>
     const video = document.getElementById('video');
     const emptyHint = document.getElementById('emptyHint');
+    const loadError = document.getElementById('loadError');
     const openBtn = document.getElementById('openBtn');
     const fileInput = document.getElementById('fileInput');
     const backBtn = document.getElementById('backBtn');
@@ -217,12 +251,24 @@
     const speedLabel = document.getElementById('speedLabel');
     const timeDisplay = document.getElementById('timeDisplay');
     const rallyBtn = document.getElementById('rallyBtn');
+    const letBtn = document.getElementById('letBtn');
+    const letHint = document.getElementById('letHint');
     const recIndicator = document.getElementById('recIndicator');
     const currentTimeEl = document.getElementById('currentTime');
     const ralliesContainer = document.getElementById('ralliesContainer');
 
     let rallies = [];
     let activeRally = null;
+    let letMode = false;
+    let loadAttempted = false;
+
+    function setLetMode(on) {
+      letMode = on;
+      letBtn.classList.toggle('marking', on);
+      letHint.classList.toggle('on', on);
+      const tbody = ralliesContainer.querySelector('tbody');
+      if (tbody) tbody.classList.toggle('let-mode', on);
+    }
 
     function formatTime(sec) {
       if (!isFinite(sec) || sec < 0) sec = 0;
@@ -252,10 +298,49 @@
     fileInput.addEventListener('change', function () {
       const file = fileInput.files[0];
       if (!file) return;
-      video.src = URL.createObjectURL(file);
+      loadFileIntoVideo(file);
+    });
+
+    function isIOS() {
+      return /iP(hone|od|ad)/i.test(navigator.userAgent);
+    }
+
+    function loadFileIntoVideo(file) {
+      loadAttempted = true;
+      while (video.firstChild) video.removeChild(video.firstChild);
+      video.removeAttribute('src');
       video.load();
+      loadError.hidden = true;
+
+      // iOS Safari has a bug where blob URLs set on video.src fail to load.
+      // Assigning the File directly to srcObject works reliably there.
+      if (isIOS() && file.type) {
+        try {
+          video.srcObject = file;
+          return;
+        } catch (e) {
+          // fall through to the <source> approach below
+        }
+      }
+
+      const url = URL.createObjectURL(file);
+      const source = document.createElement('source');
+      source.src = url;
+      source.type = file.type || 'video/mp4';
+      video.appendChild(source);
+      video.load();
+    }
+
+    video.addEventListener('loadedmetadata', function () {
+      loadAttempted = false;
       emptyHint.style.display = 'none';
       video.style.display = 'block';
+      loadError.hidden = true;
+    });
+    video.addEventListener('error', function () {
+      if (!loadAttempted) return;
+      loadError.textContent = 'Could not load that video. Try picking it again (MP4 / H.264 works best on iPhone).';
+      loadError.hidden = false;
     });
 
     // ---- Enable controls once video is ready ----
@@ -265,6 +350,7 @@
       fwdBtn.disabled = false;
       speedSlider.disabled = false;
       rallyBtn.disabled = false;
+      letBtn.disabled = false;
       playBtn.textContent = '\u25B6 Pause';
     }
     video.addEventListener('loadedmetadata', enableControls);
@@ -305,7 +391,8 @@
     // ---- Rally recording ----
     rallyBtn.addEventListener('click', function () {
       if (!activeRally) {
-        activeRally = { start: video.currentTime, end: null };
+        setLetMode(false);
+        activeRally = { start: video.currentTime, end: null, let: false };
         rallies.push(activeRally);
         rallyBtn.textContent = 'END RALLY';
         rallyBtn.classList.add('recording');
@@ -320,19 +407,40 @@
       renderTable();
     });
 
+    // ---- LET button ----
+    letBtn.addEventListener('click', function () {
+      if (activeRally) {
+        activeRally.end = video.currentTime;
+        activeRally.let = true;
+        activeRally = null;
+        rallyBtn.textContent = 'START RALLY';
+        rallyBtn.classList.remove('recording');
+        recIndicator.classList.remove('on');
+        setLetMode(false);
+        renderTable();
+      } else if (letMode) {
+        setLetMode(false);
+      } else {
+        if (rallies.length === 0) return;
+        setLetMode(true);
+      }
+    });
+
     // ---- Rally table ----
     function renderTable() {
       if (rallies.length === 0) {
         ralliesContainer.innerHTML = '<div class="no-rallies">No rallies recorded yet.</div>';
         return;
       }
-      let html = '<table><thead><tr><th>Rally</th><th>Start</th><th>End</th><th></th></tr></thead><tbody>';
+      let html = '<table><thead><tr><th>Rally</th><th>Start</th><th>End</th><th>Let</th><th></th></tr></thead>';
+      html += '<tbody' + (letMode ? ' class="let-mode"' : '') + '>';
       rallies.forEach(function (r, i) {
         const isActive = r === activeRally;
         html += '<tr data-index="' + i + '"' + (isActive ? ' class="active-rally"' : '') + '>' +
-          '<td>' + (i + 1) + '</td>' +
+          '<td class="num-cell" title="' + (letMode ? 'Click to mark as LET' : '') + '">' + (i + 1) + '</td>' +
           '<td class="time-cell" data-field="start">' + formatTime(r.start) + '</td>' +
           '<td class="time-cell" data-field="end">' + (r.end !== null ? formatTime(r.end) : '\u2014') + '</td>' +
+          '<td class="let-cell">' + (r.let ? '<span class="let-tag" title="Click to remove LET">let</span>' : '') + '</td>' +
           '<td><button class="delete-btn" title="Delete rally">X</button></td>' +
           '</tr>';
       });
@@ -398,6 +506,30 @@
         recIndicator.classList.remove('on');
       }
       rallies.splice(index, 1);
+      if (letMode && rallies.length === 0) setLetMode(false);
+      renderTable();
+    });
+
+    // ---- Mark as LET via rally number (only in let mode) ----
+    ralliesContainer.addEventListener('click', function (e) {
+      const numCell = e.target.closest('.num-cell');
+      if (!numCell || !letMode) return;
+      const index = parseInt(numCell.closest('tr').dataset.index, 10);
+      const rally = rallies[index];
+      if (!rally) return;
+      rally.let = true;
+      setLetMode(false);
+      renderTable();
+    });
+
+    // ---- Remove LET marker ----
+    ralliesContainer.addEventListener('click', function (e) {
+      const tag = e.target.closest('.let-tag');
+      if (!tag) return;
+      const index = parseInt(tag.closest('tr').dataset.index, 10);
+      const rally = rallies[index];
+      if (!rally) return;
+      rally.let = false;
       renderTable();
     });
 
@@ -408,7 +540,7 @@
       const lines = [];
       rallies.forEach(function (r, i) {
         if (r.end === null) return;
-        lines.push((i + 1) + ' | ' + formatTime(r.start) + '-' + formatTime(r.end));
+        lines.push((i + 1) + ' | ' + formatTime(r.start) + '-' + formatTime(r.end) + (r.let ? ' let' : ''));
       });
 
       if (lines.length === 0) {

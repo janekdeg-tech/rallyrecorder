@@ -45,6 +45,19 @@
   }
   .top-overlay button:hover { background: rgba(255,255,255,.22); }
   .top-overlay button:disabled { opacity: .4; cursor: not-allowed; }
+  .file-btn { position: relative; display: inline-block; overflow: hidden; }
+  .file-btn input[type="file"] {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    opacity: 0; cursor: pointer; z-index: 2;
+  }
+  .file-btn-label {
+    display: inline-block;
+    background: rgba(0,0,0,.6); color: #fff;
+    border: 1px solid rgba(255,255,255,.35); border-radius: 8px;
+    padding: 8px 12px; font-size: 14px; min-height: 44px; line-height: 28px;
+    pointer-events: none;
+  }
+  .file-btn:hover .file-btn-label { background: rgba(255,255,255,.22); }
   .speed-box { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #ddd; }
   .speed-box input[type=range] { width: 110px; }
   .time-display {
@@ -192,8 +205,10 @@
         <div id="loadError" class="load-error" hidden></div>
 
         <div class="top-overlay">
-          <button id="openBtn">Open Video&#8230;</button>
-          <input type="file" id="fileInput" accept="video/*" hidden>
+          <span class="file-btn">
+            <input type="file" id="fileInput" accept="video/*">
+            <span class="file-btn-label">Open Video&#8230;</span>
+          </span>
           <div class="speed-box">
             <label for="speedSlider">Speed</label>
             <input type="range" id="speedSlider" min="0.25" max="3" step="0.25" value="1" disabled>
@@ -233,7 +248,6 @@
     const video = document.getElementById('video');
     const emptyHint = document.getElementById('emptyHint');
     const loadError = document.getElementById('loadError');
-    const openBtn = document.getElementById('openBtn');
     const fileInput = document.getElementById('fileInput');
     const backBtn = document.getElementById('backBtn');
     const playBtn = document.getElementById('playBtn');
@@ -286,46 +300,74 @@
     }
 
     // ---- Video loading ----
-    openBtn.addEventListener('click', function () { fileInput.click(); });
     fileInput.addEventListener('change', function () {
       const file = fileInput.files[0];
       if (!file) return;
+      // Reset so picking the same file (or retrying a failed pick) fires change again.
+      fileInput.value = '';
       loadFileIntoVideo(file);
     });
+    fileInput.addEventListener('cancel', function () {
+      loadAttempted = false;
+    });
+
+    let lastFile = null;
+    let loadFallbackTimer = null;
+    let metadataFired = false;
 
     function isIOS() {
       return /iP(hone|od|ad)/i.test(navigator.userAgent);
     }
 
-    function loadFileIntoVideo(file) {
-      loadAttempted = true;
+    function clearCurrentVideo() {
       while (video.firstChild) video.removeChild(video.firstChild);
       video.removeAttribute('src');
+      video.srcObject = null;
       video.load();
-      loadError.hidden = true;
+    }
 
-      // iOS Safari has a bug where blob URLs set on video.src fail to load.
-      // Assigning the File directly to srcObject works reliably there.
-      if (isIOS() && file.type) {
+    function loadFileIntoVideo(file) {
+      loadAttempted = true;
+      lastFile = file;
+      metadataFired = false;
+      clearTimeout(loadFallbackTimer);
+      clearCurrentVideo();
+      loadError.hidden = true;
+      emptyHint.textContent = 'Loading video\u2026';
+      emptyHint.style.display = '';
+
+      // iOS Safari has bugs loading blob: URLs into video.src; assigning the
+      // raw File to srcObject works reliably there. If metadata never arrives,
+      // fall back to a blob URL on a nested <source> element.
+      if (isIOS()) {
         try {
           video.srcObject = file;
+          video.load();
+          loadFallbackTimer = setTimeout(loadFromBlobUrl, 4000);
           return;
         } catch (e) {
           // fall through to the <source> approach below
         }
       }
+      loadFromBlobUrl();
+    }
 
-      const url = URL.createObjectURL(file);
+    function loadFromBlobUrl() {
+      if (!lastFile) return;
+      const url = URL.createObjectURL(lastFile);
       const source = document.createElement('source');
       source.src = url;
-      source.type = file.type || 'video/mp4';
+      source.type = lastFile.type || 'video/mp4';
       video.appendChild(source);
       video.load();
     }
 
     video.addEventListener('loadedmetadata', function () {
       loadAttempted = false;
+      metadataFired = true;
+      clearTimeout(loadFallbackTimer);
       emptyHint.style.display = 'none';
+      emptyHint.textContent = 'No video loaded \u2014 tap \u201COpen Video\u201D';
       video.style.display = 'block';
       loadError.hidden = true;
       enableControls();
@@ -333,7 +375,14 @@
     });
     video.addEventListener('error', function () {
       if (!loadAttempted) return;
-      loadError.textContent = 'Could not load that video. Try picking it again (MP4 / H.264 works best on iPhone).';
+      clearTimeout(loadFallbackTimer);
+      emptyHint.style.display = 'none';
+      const code = video.error ? video.error.code : 0;
+      if (code === 4) {
+        loadError.textContent = 'This video (likely an HEVC recording from your Photo Library) can\u2019t be played here. Try picking it from the Files app, or convert it to MP4 (H.264).';
+      } else {
+        loadError.textContent = 'Could not load that video. Try picking it again (MP4 / H.264 works best on iPhone).';
+      }
       loadError.hidden = false;
     });
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Table Tennis Rally Recorder</title>
+<title>Next Point — Rally Recorder</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -14,14 +14,8 @@
   }
   .app { display: flex; height: 100vh; }
 
-  .main {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    padding: 16px;
-    min-width: 0;
-    gap: 12px;
-  }
+  .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
   .video-wrap {
     flex: 1;
     min-height: 0;
@@ -29,132 +23,114 @@
     align-items: center;
     justify-content: center;
     background: #000;
-    border-radius: 8px;
     overflow: hidden;
-    border: 1px solid #333;
     position: relative;
   }
   video { width: 100%; height: 100%; object-fit: contain; }
-  .empty-hint { color: #888; font-size: 18px; text-align: center; }
-  .load-error { color: #ef5350; font-size: 13px; text-align: center; padding: 8px; }
+  .empty-hint { color: #888; font-size: 18px; text-align: center; padding: 20px; }
+  .load-error { color: #ef5350; font-size: 13px; text-align: center; padding: 8px; position: absolute; bottom: 90px; left: 12px; right: 12px; background: rgba(0,0,0,.6); border-radius: 8px; z-index: 6; }
 
-  /* --- Overlay controls on the video --- */
-  .video-overlay {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 12px 14px;
-    background: linear-gradient(transparent, rgba(0, 0, 0, .78));
+  /* ---------- Overlay: top ---------- */
+  .top-overlay {
+    position: absolute; top: 0; left: 0; right: 0;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 10px 12px;
+    background: linear-gradient(rgba(0,0,0,.75), transparent);
     z-index: 5;
   }
-  .ov-group { display: flex; align-items: center; gap: 8px; }
-  .video-overlay button {
-    background: rgba(0, 0, 0, .6);
-    color: #fff;
-    border: 1px solid rgba(255, 255, 255, .35);
-    border-radius: 8px;
-    padding: 8px 12px;
-    font-size: 14px;
-    cursor: pointer;
-    min-height: 40px;
+  .top-overlay button {
+    background: rgba(0,0,0,.6); color: #fff;
+    border: 1px solid rgba(255,255,255,.35); border-radius: 8px;
+    padding: 8px 12px; font-size: 14px; cursor: pointer; min-height: 44px;
+  }
+  .top-overlay button:hover { background: rgba(255,255,255,.22); }
+  .top-overlay button:disabled { opacity: .4; cursor: not-allowed; }
+  .speed-box { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #ddd; }
+  .speed-box input[type=range] { width: 110px; }
+  .time-display {
+    font-family: Consolas, monospace;
+    font-size: 14px; color: #fff; background: rgba(0,0,0,.5);
+    padding: 6px 10px; border-radius: 8px;
+  }
+  .let-hint { display: none; color: #ffeb3b; font-size: 13px; background: rgba(0,0,0,.5); padding: 6px 10px; border-radius: 8px; }
+  .let-hint.on { display: inline; }
+
+  /* ---------- Overlay: bottom ---------- */
+  .bottom-overlay {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    display: flex; align-items: flex-end; justify-content: space-between; gap: 10px;
+    padding: 16px 12px 12px;
+    background: linear-gradient(transparent, rgba(0,0,0,.82));
+    z-index: 5;
+  }
+  .transport { display: flex; align-items: center; gap: 8px; }
+  .transport button {
+    background: rgba(0,0,0,.6); color: #fff;
+    border: 1px solid rgba(255,255,255,.35); border-radius: 8px;
+    padding: 10px 12px; font-size: 14px; cursor: pointer; min-height: 48px; min-width: 48px;
     white-space: nowrap;
   }
-  .video-overlay button:hover { background: rgba(255, 255, 255, .22); }
-  .video-overlay button:disabled { opacity: .4; cursor: not-allowed; }
+  .transport button:hover { background: rgba(255,255,255,.22); }
+  .transport button:disabled { opacity: .4; cursor: not-allowed; }
   #letBtn { background: #5a5427; border-color: #d4b106; }
-  #letBtn:hover { background: #6a6227; }
   #letBtn.marking {
     background: #7a6a1f;
     border-color: #ffeb3b;
     box-shadow: 0 0 0 3px rgba(255, 235, 59, .3);
   }
 
-  /* --- Bottom controls bar --- */
-  .controls {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-    background: #252526;
-    border: 1px solid #333;
-    border-radius: 8px;
-    padding: 10px 14px;
-  }
-  .controls button, .sidebar button {
-    background: #3a3a3a;
-    color: #e8e8e8;
-    border: 1px solid #555;
-    border-radius: 6px;
-    padding: 8px 12px;
-    font-size: 14px;
-    cursor: pointer;
-  }
-  .controls button:hover, .sidebar button:hover { background: #4a4a4a; }
-  .controls button:disabled, .sidebar button:disabled { opacity: .4; cursor: not-allowed; }
-  .speed-box { display: flex; align-items: center; gap: 8px; margin-left: auto; font-size: 13px; }
-  .speed-box input[type=range] { width: 120px; }
-  .time-display {
+  /* ---------- Live rally timer ---------- */
+  .rally-timer {
     font-family: Consolas, monospace;
-    font-size: 15px;
-    min-width: 90px;
+    font-size: 24px; font-weight: 700;
+    color: #4caf50;
+    background: rgba(0,0,0,.5);
+    border: 1px solid rgba(76,175,80,.6);
+    border-radius: 10px;
+    padding: 8px 16px;
     text-align: center;
+    min-width: 96px;
   }
-  .rec-indicator { display: none; color: #ef5350; font-weight: 700; font-size: 13px; }
-  .rec-indicator.on { display: inline; }
-  .let-hint { display: none; color: #ffeb3b; font-size: 13px; }
-  .let-hint.on { display: inline; }
+  .rally-timer.rec { color: #ff5252; border-color: rgba(255,82,82,.7); animation: pulse 1.2s infinite; }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255,82,82,.5); }
+    50% { box-shadow: 0 0 0 8px rgba(255,82,82,0); }
+  }
 
+  /* ---------- Player buttons ---------- */
+  .players { display: flex; flex-direction: column; gap: 8px; }
+  .players button {
+    min-height: 52px; min-width: 92px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    border-radius: 10px; border: 1px solid #2f9e52;
+    background: #1d6f3c; color: #fff;
+    font-size: 14px; font-weight: 700; cursor: pointer;
+  }
+  .players button small { font-size: 11px; font-weight: 600; opacity: .9; }
+  .players button:hover { filter: brightness(1.12); }
+  .players button:disabled { opacity: .4; cursor: not-allowed; }
+  .players button.recording { background: #a3312b; border-color: #e0504a; }
+
+  /* ---------- Sidebar ---------- */
   .sidebar {
-    width: 360px;
-    min-width: 360px;
+    width: 340px; min-width: 340px;
     border-left: 1px solid #333;
     background: #252526;
     padding: 16px;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
+    display: flex; flex-direction: column; gap: 12px;
   }
   .sidebar h2 { font-size: 15px; color: #bbb; text-transform: uppercase; letter-spacing: 1px; }
   .sidebar-header { display: flex; justify-content: space-between; align-items: center; }
-  #copyBtn { padding: 6px 12px; font-size: 13px; }
+  #copyBtn {
+    background: #3a3a3a; color: #e8e8e8; border: 1px solid #555; border-radius: 6px;
+    padding: 8px 12px; font-size: 13px; cursor: pointer; min-height: 40px;
+  }
+  #copyBtn:hover { background: #4a4a4a; }
   #ralliesContainer { flex: 1; overflow-y: auto; min-height: 0; }
-  .sidebar-actions {
-    flex: none;
-    padding-top: 12px;
-    border-top: 1px solid #333;
-    display: flex;
-  }
-  #rallyBtn {
-    flex: 1;
-    font-size: 16px;
-    font-weight: 700;
-    padding: 14px;
-    background: #2d5a27;
-    border-color: #4caf50;
-  }
-  #rallyBtn.recording {
-    background: #6a1f1f;
-    border-color: #ef5350;
-    animation: pulse 1.2s infinite;
-  }
-  @keyframes pulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(239, 83, 80, .5); }
-    50% { box-shadow: 0 0 0 8px rgba(239, 83, 80, 0); }
-  }
-
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
   thead th {
-    text-align: left;
-    color: #999;
-    font-weight: 600;
-    padding: 6px 8px;
-    border-bottom: 1px solid #444;
+    text-align: left; color: #999; font-weight: 600;
+    padding: 6px 8px; border-bottom: 1px solid #444;
   }
   tbody td { padding: 6px 8px; border-bottom: 1px solid #333; }
   tbody tr.active-rally { background: rgba(239, 83, 80, .12); }
@@ -162,71 +138,48 @@
   tbody.let-mode .num-cell { cursor: pointer; color: #ffeb3b; text-decoration: underline; }
   .let-cell { text-align: center; }
   .let-tag {
-    display: inline-block;
-    background: #7a6a1f;
-    color: #ffeb3b;
-    font-size: 12px;
-    font-weight: 700;
-    padding: 2px 10px;
-    border-radius: 10px;
-    cursor: pointer;
+    display: inline-block; background: #7a6a1f; color: #ffeb3b;
+    font-size: 12px; font-weight: 700; padding: 2px 10px; border-radius: 10px; cursor: pointer;
   }
   .let-tag:hover { background: #8a7a2a; }
   .time-cell { font-family: Consolas, monospace; cursor: text; }
   .time-cell:hover { background: #3a3a3a; }
   .time-input {
-    width: 100%;
-    font-family: Consolas, monospace;
-    font-size: 14px;
-    background: #3a3a3a;
-    color: #e8e8e8;
-    border: 1px solid #4caf50;
-    border-radius: 4px;
-    padding: 2px 4px;
-    outline: none;
+    width: 100%; font-family: Consolas, monospace; font-size: 14px;
+    background: #3a3a3a; color: #e8e8e8;
+    border: 1px solid #4caf50; border-radius: 4px; padding: 2px 4px; outline: none;
   }
   .delete-btn {
-    background: transparent !important;
-    border: none !important;
-    color: #e05c5c;
-    font-weight: 700;
-    padding: 2px 8px !important;
-    font-size: 13px !important;
+    background: transparent !important; border: none !important; color: #e05c5c;
+    font-weight: 700; padding: 6px 10px !important; font-size: 13px !important;
+    min-height: 40px; min-width: 40px; cursor: pointer;
   }
   .delete-btn:hover { color: #fff; background: #7a2323 !important; }
   .no-rallies { color: #777; font-size: 13px; font-style: italic; }
   .footer-note { color: #666; font-size: 12px; flex: none; padding-top: 8px; }
 
-  /* --- Mobile portrait / small screens --- */
+  /* ---------- Portrait phones ---------- */
   @media (max-width: 820px) {
     .app { flex-direction: column; height: auto; min-height: 100vh; }
-    .main { padding: 10px; }
-    .video-wrap { height: 42vh; flex: none; }
-    .controls { justify-content: center; padding: 10px; }
-    .controls button, .sidebar button { min-height: 44px; min-width: 44px; font-size: 15px; }
-    .speed-box { margin-left: 0; width: 100%; justify-content: center; }
-    .speed-box input[type=range] { width: 55%; }
-    .video-overlay { flex-wrap: wrap; justify-content: center; padding: 8px 10px; }
+    .video-wrap { height: 46vh; flex: none; }
     .sidebar { width: 100%; min-width: 0; border-left: none; border-top: 1px solid #333; }
-    .sidebar-actions { padding: 10px 0 0; }
-    #rallyBtn { min-height: 52px; font-size: 16px; }
+    .top-overlay button, .transport button { min-height: 44px; min-width: 44px; }
+    .players button { min-width: 78px; }
+    .rally-timer { font-size: 20px; min-width: 84px; padding: 6px 12px; }
     .time-cell { padding: 10px 8px; }
-    .delete-btn { min-width: 44px !important; }
+    .delete-btn { min-width: 44px !important; min-height: 44px !important; }
   }
 
-  /* --- Landscape phones (short + wide) --- */
+  /* ---------- Landscape phones: full-screen video, list hidden ---------- */
   @media (orientation: landscape) and (max-height: 700px) {
     .app { flex-direction: row; height: 100vh; }
-    .main { padding: 8px; gap: 8px; }
-    .video-wrap { flex: 1; height: auto; }
-    .controls { justify-content: flex-start; gap: 10px; padding: 8px 10px; }
-    .controls button { min-height: 40px; min-width: 40px; }
-    .speed-box { margin-left: auto; width: auto; }
-    .speed-box input[type=range] { width: 90px; }
-    .video-overlay { padding: 6px 10px; }
-    .video-overlay button { min-height: 36px; padding: 6px 10px; font-size: 13px; }
-    .sidebar { width: 300px; min-width: 300px; border-left: 1px solid #333; border-top: none; }
-    .time-display { font-size: 13px; min-width: 78px; }
+    .sidebar { display: none; }
+    .video-wrap { flex: 1; }
+    .top-overlay { padding: 8px 10px; }
+    .bottom-overlay { padding: 12px 10px 10px; }
+    .transport button { min-height: 44px; padding: 8px 10px; }
+    .players button { min-height: 48px; min-width: 84px; }
+    .rally-timer { font-size: 18px; min-width: 76px; padding: 5px 10px; }
   }
 </style>
 </head>
@@ -235,31 +188,34 @@
     <div class="main">
       <div class="video-wrap">
         <video id="video" preload="metadata" playsinline webkit-playsinline></video>
-        <div id="emptyHint" class="empty-hint">No video loaded — click "Open Video"</div>
+        <div id="emptyHint" class="empty-hint">No video loaded — tap "Open Video"</div>
         <div id="loadError" class="load-error" hidden></div>
-        <div class="video-overlay">
-          <div class="ov-group">
-            <button id="backBtn" disabled title="Back 10 seconds">&#9198; 10s</button>
-            <button id="playBtn" disabled title="Play / Pause">&#9654;</button>
-            <button id="fwdBtn" disabled title="Forward 10 seconds">10s &#9197;</button>
+
+        <div class="top-overlay">
+          <button id="openBtn">Open Video&#8230;</button>
+          <input type="file" id="fileInput" accept="video/*" hidden>
+          <div class="speed-box">
+            <label for="speedSlider">Speed</label>
+            <input type="range" id="speedSlider" min="0.25" max="3" step="0.25" value="1" disabled>
+            <span id="speedLabel">1.0x</span>
           </div>
-          <div class="ov-group">
+          <span class="time-display" id="timeDisplay">0:00 / 0:00</span>
+          <span class="let-hint" id="letHint">Click a rally number to mark it as LET</span>
+        </div>
+
+        <div class="bottom-overlay">
+          <div class="transport">
+            <button id="backBtn" disabled title="Back 5 seconds">&#9198; 5s</button>
+            <button id="playBtn" disabled title="Play / Pause">&#9654;</button>
+            <button id="fwdBtn" disabled title="Forward 5 seconds">5s &#9197;</button>
             <button id="letBtn" disabled title="Mark rally as a let">LET</button>
           </div>
+          <div class="rally-timer" id="rallyTimer">0:00</div>
+          <div class="players">
+            <button id="p1Btn" disabled><b>Player 1</b><small>Serve</small></button>
+            <button id="p2Btn" disabled><b>Player 2</b><small>Serve</small></button>
+          </div>
         </div>
-      </div>
-
-      <div class="controls">
-        <button id="openBtn">Open Video&#8230;</button>
-        <input type="file" id="fileInput" accept="video/*" hidden>
-        <div class="speed-box">
-          <label for="speedSlider">Speed</label>
-          <input type="range" id="speedSlider" min="0.25" max="3" step="0.25" value="1" disabled>
-          <span id="speedLabel">1.0x</span>
-        </div>
-        <span class="time-display" id="timeDisplay">0:00 / 0:00</span>
-        <span class="rec-indicator" id="recIndicator">&#9679; RECORDING</span>
-        <span class="let-hint" id="letHint">Click a rally number to mark it as LET</span>
       </div>
     </div>
 
@@ -269,9 +225,6 @@
         <button id="copyBtn">Copy List</button>
       </div>
       <div id="ralliesContainer"></div>
-      <div class="sidebar-actions">
-        <button id="rallyBtn" disabled>START RALLY</button>
-      </div>
       <div class="footer-note">Click a start/end time to edit it. Click let to remove it. Click X to delete a rally.</div>
     </div>
   </div>
@@ -285,14 +238,16 @@
     const backBtn = document.getElementById('backBtn');
     const playBtn = document.getElementById('playBtn');
     const fwdBtn = document.getElementById('fwdBtn');
+    const letBtn = document.getElementById('letBtn');
     const speedSlider = document.getElementById('speedSlider');
     const speedLabel = document.getElementById('speedLabel');
     const timeDisplay = document.getElementById('timeDisplay');
-    const rallyBtn = document.getElementById('rallyBtn');
-    const letBtn = document.getElementById('letBtn');
-    const recIndicator = document.getElementById('recIndicator');
+    const rallyTimer = document.getElementById('rallyTimer');
+    const p1Btn = document.getElementById('p1Btn');
+    const p2Btn = document.getElementById('p2Btn');
     const letHint = document.getElementById('letHint');
     const ralliesContainer = document.getElementById('ralliesContainer');
+    const copyBtn = document.getElementById('copyBtn');
 
     let rallies = [];
     let activeRally = null;
@@ -373,6 +328,8 @@
       emptyHint.style.display = 'none';
       video.style.display = 'block';
       loadError.hidden = true;
+      enableControls();
+      updateTimes();
     });
     video.addEventListener('error', function () {
       if (!loadAttempted) return;
@@ -386,26 +343,35 @@
       playBtn.disabled = false;
       fwdBtn.disabled = false;
       speedSlider.disabled = false;
-      rallyBtn.disabled = false;
       letBtn.disabled = false;
+      p1Btn.disabled = false;
+      p2Btn.disabled = false;
       playBtn.textContent = '\u25B6';
     }
-    video.addEventListener('loadedmetadata', enableControls);
 
     // ---- Time updates ----
     function updateTimes() {
       const dur = isFinite(video.duration) ? video.duration : 0;
       timeDisplay.textContent = formatTime(video.currentTime) + ' / ' + formatTime(dur);
+      updateRallyTimer();
+    }
+    function updateRallyTimer() {
+      if (activeRally) {
+        rallyTimer.textContent = formatTime(video.currentTime - activeRally.start);
+        rallyTimer.classList.add('rec');
+      } else {
+        rallyTimer.textContent = '0:00';
+        rallyTimer.classList.remove('rec');
+      }
     }
     video.addEventListener('timeupdate', updateTimes);
-    video.addEventListener('loadedmetadata', updateTimes);
 
     // ---- Transport controls ----
     backBtn.addEventListener('click', function () {
-      video.currentTime = Math.max(0, video.currentTime - 10);
+      video.currentTime = Math.max(0, video.currentTime - 5);
     });
     fwdBtn.addEventListener('click', function () {
-      video.currentTime = Math.min(video.duration || 0, video.currentTime + 10);
+      video.currentTime = Math.min(video.duration || 0, video.currentTime + 5);
     });
     playBtn.addEventListener('click', function () {
       if (video.paused) {
@@ -424,38 +390,42 @@
       speedLabel.textContent = speedSlider.value + 'x';
     });
 
-    // ---- Rally recording ----
-    rallyBtn.addEventListener('click', function () {
+    // ---- Player buttons: serve to start, win to end ----
+    p1Btn.addEventListener('click', function () { playerClick(1); });
+    p2Btn.addEventListener('click', function () { playerClick(2); });
+
+    function playerClick(player) {
       if (!activeRally) {
         setLetMode(false);
-        activeRally = { start: video.currentTime, end: null, let: false };
+        activeRally = { start: video.currentTime, end: null, server: player, winner: null, let: false };
         rallies.push(activeRally);
-        rallyBtn.textContent = 'END RALLY';
-        rallyBtn.classList.add('recording');
-        recIndicator.classList.add('on');
-        renderTable();
-        scrollListToBottom();
       } else {
         activeRally.end = video.currentTime;
+        activeRally.winner = player;
         activeRally = null;
-        rallyBtn.textContent = 'START RALLY';
-        rallyBtn.classList.remove('recording');
-        recIndicator.classList.remove('on');
-        renderTable();
-        scrollListToBottom();
       }
-    });
+      updatePlayerButtons();
+      renderTable();
+      scrollListToBottom();
+    }
 
-    // ---- LET button ----
+    function updatePlayerButtons() {
+      const rec = !!activeRally;
+      p1Btn.classList.toggle('recording', rec);
+      p2Btn.classList.toggle('recording', rec);
+      p1Btn.querySelector('small').textContent = rec ? 'Win point' : 'Serve';
+      p2Btn.querySelector('small').textContent = rec ? 'Win point' : 'Serve';
+      updateRallyTimer();
+    }
+
+    // ---- LET button: end the rally as a let (no point) ----
     letBtn.addEventListener('click', function () {
       if (activeRally) {
         activeRally.end = video.currentTime;
         activeRally.let = true;
+        activeRally.winner = null;
         activeRally = null;
-        rallyBtn.textContent = 'START RALLY';
-        rallyBtn.classList.remove('recording');
-        recIndicator.classList.remove('on');
-        setLetMode(false);
+        updatePlayerButtons();
         renderTable();
         scrollListToBottom();
       } else if (letMode) {
@@ -467,6 +437,9 @@
     });
 
     // ---- Rally table ----
+    function servePrefix(r) { return r.server ? '(' + r.server + ')' : ''; }
+    function winnerPrefix(r) { return r.winner ? '(' + r.winner + ')' : ''; }
+
     function renderTable() {
       if (rallies.length === 0) {
         ralliesContainer.innerHTML = '<div class="no-rallies">No rallies recorded yet.</div>';
@@ -478,8 +451,8 @@
         const isActive = r === activeRally;
         html += '<tr data-index="' + i + '"' + (isActive ? ' class="active-rally"' : '') + '>' +
           '<td class="num-cell" title="' + (letMode ? 'Click to mark as LET' : '') + '">' + (i + 1) + '</td>' +
-          '<td class="time-cell" data-field="start">' + formatTime(r.start) + '</td>' +
-          '<td class="time-cell" data-field="end">' + (r.end !== null ? formatTime(r.end) : '\u2014') + '</td>' +
+          '<td class="time-cell" data-field="start">' + servePrefix(r) + formatTime(r.start) + '</td>' +
+          '<td class="time-cell" data-field="end">' + winnerPrefix(r) + (r.end !== null ? formatTime(r.end) : '\u2014') + '</td>' +
           '<td class="let-cell">' + (r.let ? '<span class="let-tag" title="Click to remove LET">let</span>' : '') + '</td>' +
           '<td><button class="delete-btn" title="Delete rally">X</button></td>' +
           '</tr>';
@@ -545,9 +518,7 @@
       const rally = rallies[index];
       if (rally === activeRally) {
         activeRally = null;
-        rallyBtn.textContent = 'START RALLY';
-        rallyBtn.classList.remove('recording');
-        recIndicator.classList.remove('on');
+        updatePlayerButtons();
       }
       rallies.splice(index, 1);
       if (letMode && rallies.length === 0) setLetMode(false);
@@ -578,13 +549,11 @@
     });
 
     // ---- Copy list ----
-    const copyBtn = document.getElementById('copyBtn');
-
     copyBtn.addEventListener('click', function () {
       const lines = [];
       rallies.forEach(function (r, i) {
         if (r.end === null) return;
-        lines.push((i + 1) + ' | ' + formatTime(r.start) + '-' + formatTime(r.end) + (r.let ? ' let' : ''));
+        lines.push((i + 1) + ' | ' + servePrefix(r) + formatTime(r.start) + ' - ' + winnerPrefix(r) + formatTime(r.end) + (r.let ? ' let' : ''));
       });
 
       if (lines.length === 0) {

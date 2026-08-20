@@ -223,6 +223,7 @@
             <button id="backBtn" disabled title="Back 5 seconds">&#9198; 5s</button>
             <button id="playBtn" disabled title="Play / Pause">&#9654;</button>
             <button id="fwdBtn" disabled title="Forward 5 seconds">5s &#9197;</button>
+            <button id="muteBtn" disabled title="Mute / Unmute">Mute</button>
             <button id="letBtn" disabled title="Mark rally as a let">LET</button>
           </div>
           <div class="rally-timer" id="rallyTimer">0:00</div>
@@ -252,6 +253,7 @@
     const backBtn = document.getElementById('backBtn');
     const playBtn = document.getElementById('playBtn');
     const fwdBtn = document.getElementById('fwdBtn');
+    const muteBtn = document.getElementById('muteBtn');
     const letBtn = document.getElementById('letBtn');
     const speedSlider = document.getElementById('speedSlider');
     const speedLabel = document.getElementById('speedLabel');
@@ -267,6 +269,8 @@
     let activeRally = null;
     let letMode = false;
     let loadAttempted = false;
+    let videoMuted = localStorage.getItem('rallyMuted') === '1';
+    video.muted = videoMuted;
 
     function setLetMode(on) {
       letMode = on;
@@ -391,11 +395,13 @@
       backBtn.disabled = false;
       playBtn.disabled = false;
       fwdBtn.disabled = false;
+      muteBtn.disabled = false;
       speedSlider.disabled = false;
       letBtn.disabled = false;
       p1Btn.disabled = false;
       p2Btn.disabled = false;
       playBtn.textContent = '\u25B6';
+      updateMuteBtn();
     }
 
     // ---- Time updates ----
@@ -433,6 +439,17 @@
     });
     video.addEventListener('play', function () { playBtn.textContent = '\u23F8'; });
     video.addEventListener('pause', function () { playBtn.textContent = '\u25B6'; });
+
+    muteBtn.addEventListener('click', function () {
+      videoMuted = !videoMuted;
+      video.muted = videoMuted;
+      localStorage.setItem('rallyMuted', videoMuted ? '1' : '0');
+      updateMuteBtn();
+    });
+    function updateMuteBtn() {
+      muteBtn.textContent = video.muted ? 'Unmute' : 'Mute';
+      muteBtn.title = video.muted ? 'Unmute' : 'Mute / Unmute';
+    }
 
     speedSlider.addEventListener('input', function () {
       video.playbackRate = parseFloat(speedSlider.value);
